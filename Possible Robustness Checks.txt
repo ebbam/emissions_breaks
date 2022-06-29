@@ -1,4 +1,0 @@
-Robustness Checks:
-
-overall level instead of p.c.
-smaller/larger samples
