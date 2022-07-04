@@ -7,9 +7,7 @@ library(tidyr)
 library(ggplot2)
 library(gridExtra)
 library(data.table)
-
-source("isatpanel_v9.R")
-source("breakmap_v2.R")
+library(getspanel)
 
 set.seed(123)
 
@@ -17,7 +15,7 @@ set.seed(123)
 ltitle=paste0("Results_CO2Drivers_Analysis 1d_",
               format(Sys.time(), "%m-%d"),".txt")
 
-data <- read.csv("CO2DriversEU_dataset_v1.csv")
+data <- read.csv("CO2DriversEU_dataset_v1_final.csv")
 data$lgdp_sq <- data$lgdp^2
 
 data <- as.data.table(data)
@@ -74,62 +72,42 @@ for(sample in list(EU15, EU31)){
     file = ltitle,
     append = T
   )
-
-  for(dv in list(dat$ltransport.emissions, dat$ltransport.emissions_pc, dat$growthtransport.emissions_pc)){
-    
-    for(p.value in c(0.1, 0.05, 0.01, 0.005)){
-      
-      # Specify control variables:
-      controls <- cbind(dat$lgdp, dat$lgdp_sq)
-      
-      
-      if(plot.count %in% c(1:4, 13:16)){
-        dv.name <- "log(emissions)"
-        controls <- cbind(controls, dat$lpop)
-        }
-      if(plot.count %in% c(5:8, 17:20)){dv.name <- "log(emissions p.c.)"}
-      if(plot.count %in% c(9:12, 21:24)){dv.name <- "growth(emissions p.c.)"}
-      
+  
+    for(p.value in c(0.05, 0.01, 0.001)){
       # Break analysis:
-      is <- isatpanel(
-        y=dv, 
-        id=dat$country, 
-        time=dat$year, 
-        mxreg=controls, 
-        mxbreak=c(dat$const), 
-        break.method="both", 
+      is <- isatpanel(dat,
+        formula = "ltransport.emissions ~ lgdp + lgdp_sq + lpop", 
+        index = c("country", "year"),
         effect="twoways", 
-        iis=TRUE, 
-        t.pval=p.value)
-
+      # I think the issue is the choice of fesis, iis, sis! Once this is right the results should be identical...
+      # For the EU-31 test case could also be the non-differentiation between EU_15 and EU_31 countries...
+        fesis = TRUE,
+        t.pval= p.value)
+      
       
       # Create and output graph:
-      graph <- breakmap(
-        model = is,
-        start.time = syear,
-        reference.unit = runit,
-        plot.iis = T
-        ) +
-        ggtitle(paste0(dv.name, " at p=",p.value))  + 
-        theme(legend.position = "none")
+      graph <- plot_grid(is) +
+          ggtitle(paste0("EU",length(sample), "log_emissions at p=",p.value))  + 
+         theme(legend.position = "none")
       
       ggsave(
-        paste0("Analysis1d/EU", length(sample), "_", dv.name, "_p", 
-               p.value, ".png"),
-        graph,
-        width=25,
-        height=length(sample),
-        units="cm"
-      )
-
+           paste0("EU", length(sample), "_", "_p", 
+                  p.value, ".png"), 
+           graph,
+           width=25,
+           height=length(sample),
+           units="cm"
+         )
+         
       maps[[plot.count]] <- ggplot_build(graph)
       plot.count <- plot.count+1
       
       # Output analysis results:
       cat(
         paste0(
-          " \n ############################### \n #### DV = ", 
-          dv.name,
+          " \n ############################### \n ", 
+          "Log Emissions",
+          " \n # Sample: EU", length(sample),
           " \n # Startyear: ", syear,
           " \n # Autogressive lag: FALSE ",
           " \n # p-value: ", p.value,
@@ -141,15 +119,10 @@ for(sample in list(EU15, EU31)){
       print(is)
       sink()
       
-      cat(" \n \n \n \n \n", 
-          file = ltitle, 
-          append = T)
-      
       cat(
         paste0(
-          " \n \n \n EU", length(sample), ": Plot ", plot.count-1, "/24 finished. \n \n \n "
+          " \n \n \n EU", length(sample), ": Plot ", plot.count-1, "/8 finished. \n \n \n "
         )
       )
     }
   }
-}
